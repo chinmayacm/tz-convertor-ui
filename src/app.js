@@ -17,6 +17,13 @@ import {
 import { parseQuickQuery } from './quick-parse.js';
 
 const STORAGE_KEY = 'zoneshift_prefs_v1';
+const MODULE_KEYS = ['quick', 'oneToOne', 'multi', 'guide'];
+const MODULE_LABELS = {
+  quick: 'Quick Parse',
+  oneToOne: '1-to-1 Converter',
+  multi: 'Multi-Zone Timeline',
+  guide: 'Guide & FAQ',
+};
 
 function uniqueZones(list) {
   const seen = new Set();
@@ -54,7 +61,28 @@ function createDefaultState() {
     boardZones,
     favoriteZones,
     savedPairs,
+    visibleModules: {
+      quick: true,
+      oneToOne: true,
+      multi: true,
+      guide: true,
+    },
+    moduleOrder: [...MODULE_KEYS],
   };
+}
+
+function normalizeModuleOrder(rawOrder) {
+  if (!Array.isArray(rawOrder)) return [...MODULE_KEYS];
+  const valid = [];
+  for (const k of rawOrder) {
+    if (MODULE_KEYS.includes(k) && !valid.includes(k)) {
+      valid.push(k);
+    }
+  }
+  for (const k of MODULE_KEYS) {
+    if (!valid.includes(k)) valid.push(k);
+  }
+  return valid;
 }
 
 function loadPrefs() {
@@ -63,6 +91,17 @@ function loadPrefs() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
+    const loadedModules = { ...defaults.visibleModules };
+    if (parsed.visibleModules && typeof parsed.visibleModules === 'object') {
+      for (const k of MODULE_KEYS) {
+        if (typeof parsed.visibleModules[k] === 'boolean') {
+          loadedModules[k] = parsed.visibleModules[k];
+        }
+      }
+      if (!MODULE_KEYS.some((k) => loadedModules[k])) {
+        loadedModules.oneToOne = true;
+      }
+    }
     return {
       theme: parsed.theme === 'light' ? 'light' : 'dark',
       use24Hour: Boolean(parsed.use24Hour),
@@ -77,6 +116,8 @@ function loadPrefs() {
       savedPairs: Array.isArray(parsed.savedPairs)
         ? parsed.savedPairs.filter((p) => p && isValidZone(p.from) && isValidZone(p.to))
         : defaults.savedPairs,
+      visibleModules: loadedModules,
+      moduleOrder: normalizeModuleOrder(parsed.moduleOrder),
     };
   } catch {
     return defaults;
@@ -517,8 +558,134 @@ function applyQuickResultToApp() {
   showToast('Synced quick query to converter & timeline');
 }
 
+function renderModulesVisibility() {
+  const order = normalizeModuleOrder(prefs.moduleOrder);
+  prefs.moduleOrder = order;
+
+  // Sync section order inside #mainGrid only when changed
+  const mainGrid = document.getElementById('mainGrid');
+  if (mainGrid) {
+    const currentDomOrder = Array.from(mainGrid.children)
+      .map((node) => node.id.replace(/^module-/, ''))
+      .filter((k) => MODULE_KEYS.includes(k));
+    if (currentDomOrder.join(',') !== order.join(',')) {
+      for (const key of order) {
+        const sec = document.getElementById(`module-${key}`);
+        if (sec) mainGrid.appendChild(sec);
+      }
+    }
+  }
+
+  // Sync pill order inside #modulePills only when changed
+  const pillsWrap = document.getElementById('modulePills');
+  if (pillsWrap) {
+    const currentPillOrder = Array.from(pillsWrap.children)
+      .map((node) => node.getAttribute('data-toggle-module'))
+      .filter(Boolean);
+    if (currentPillOrder.join(',') !== order.join(',')) {
+      for (const key of order) {
+        const pill = pillsWrap.querySelector(`[data-toggle-module="${key}"]`);
+        if (pill) pillsWrap.appendChild(pill);
+      }
+    }
+  }
+
+  let hiddenCount = 0;
+  for (const key of order) {
+    const isVisible = Boolean(prefs.visibleModules[key]);
+    if (!isVisible) hiddenCount++;
+    const sec = document.getElementById(`module-${key}`);
+    if (sec) sec.classList.toggle('hidden', !isVisible);
+  }
+
+  document.querySelectorAll('[data-toggle-module]').forEach((pill) => {
+    const key = pill.getAttribute('data-toggle-module');
+    const isVisible = Boolean(prefs.visibleModules[key]);
+    pill.classList.toggle('active', isVisible);
+    pill.setAttribute('aria-pressed', String(isVisible));
+  });
+
+  // Update ↑ / ↓ disabled states relative to currently visible modules
+  const visibleOrder = order.filter((k) => prefs.visibleModules[k]);
+  document.querySelectorAll('[data-move-module]').forEach((btn) => {
+    const key = btn.getAttribute('data-move-module');
+    const dir = Number(btn.getAttribute('data-dir'));
+    const visIdx = visibleOrder.indexOf(key);
+    btn.disabled =
+      visIdx === -1 ||
+      (dir < 0 && visIdx === 0) ||
+      (dir > 0 && visIdx === visibleOrder.length - 1);
+  });
+
+  const showAllBtn = document.getElementById('showAllModulesBtn');
+  if (showAllBtn) {
+    showAllBtn.classList.toggle('hidden', hiddenCount === 0);
+  }
+
+  const isCustomOrder = order.join(',') !== MODULE_KEYS.join(',');
+  const resetLayoutBtn = document.getElementById('resetLayoutBtn');
+  if (resetLayoutBtn) {
+    resetLayoutBtn.classList.toggle('hidden', hiddenCount === 0 && !isCustomOrder);
+  }
+}
+
+function moveModuleByStep(key, dir) {
+  const order = normalizeModuleOrder(prefs.moduleOrder);
+  const visibleOrder = order.filter((k) => prefs.visibleModules[k]);
+  const visIdx = visibleOrder.indexOf(key);
+  const neighborKey = visibleOrder[visIdx + dir];
+  if (visIdx === -1 || !neighborKey) return;
+
+  const idxA = order.indexOf(key);
+  const idxB = order.indexOf(neighborKey);
+  order[idxA] = neighborKey;
+  order[idxB] = key;
+  prefs.moduleOrder = order;
+  savePrefs();
+  renderModulesVisibility();
+}
+
+function reorderModuleToTarget(draggedKey, targetKey) {
+  if (!draggedKey || !targetKey || draggedKey === targetKey) return;
+  const order = normalizeModuleOrder(prefs.moduleOrder);
+  const fromIdx = order.indexOf(draggedKey);
+  const toIdx = order.indexOf(targetKey);
+  if (fromIdx === -1 || toIdx === -1) return;
+
+  order.splice(fromIdx, 1);
+  order.splice(toIdx, 0, draggedKey);
+  prefs.moduleOrder = order;
+  savePrefs();
+  renderModulesVisibility();
+  showToast(`Moved ${MODULE_LABELS[draggedKey] || draggedKey}`);
+}
+
+function setModuleVisible(key, shouldShow, { silent = false } = {}) {
+  if (!MODULE_KEYS.includes(key)) return false;
+  if (!shouldShow) {
+    const openCount = MODULE_KEYS.filter((k) => prefs.visibleModules[k]).length;
+    if (openCount <= 1 && prefs.visibleModules[key]) {
+      showToast('Keep at least one module open');
+      return false;
+    }
+  }
+  prefs.visibleModules[key] = shouldShow;
+  savePrefs();
+  renderModulesVisibility();
+  if (!silent) {
+    const label = MODULE_LABELS[key] || key;
+    showToast(
+      shouldShow
+        ? `Opened ${label}`
+        : `Closed ${label} — click its pill above to reopen`
+    );
+  }
+  return true;
+}
+
 function renderAll() {
   renderHeaderState();
+  renderModulesVisibility();
   renderOneToOne();
   renderMultiBoard();
   renderQuickParse();
@@ -936,6 +1103,88 @@ function bindEvents() {
     showToast('✓ Cleared saved local data & reset to defaults');
   });
 
+  // Module Visibility & Rearrange Controls (click to toggle, drag or ↑/↓ to reorder)
+  let draggedModuleKey = null;
+
+  document.querySelectorAll('[data-toggle-module]').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      const key = pill.getAttribute('data-toggle-module');
+      setModuleVisible(key, !prefs.visibleModules[key]);
+    });
+
+    pill.addEventListener('dragstart', (e) => {
+      draggedModuleKey = pill.getAttribute('data-toggle-module');
+      pill.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', draggedModuleKey);
+      }
+    });
+
+    pill.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      const overKey = pill.getAttribute('data-toggle-module');
+      if (draggedModuleKey && overKey !== draggedModuleKey) {
+        pill.classList.add('drag-over');
+      }
+    });
+
+    pill.addEventListener('dragleave', () => {
+      pill.classList.remove('drag-over');
+    });
+
+    pill.addEventListener('drop', (e) => {
+      e.preventDefault();
+      pill.classList.remove('drag-over');
+      const targetKey = pill.getAttribute('data-toggle-module');
+      const sourceKey = draggedModuleKey || e.dataTransfer?.getData('text/plain');
+      reorderModuleToTarget(sourceKey, targetKey);
+      draggedModuleKey = null;
+    });
+
+    pill.addEventListener('dragend', () => {
+      draggedModuleKey = null;
+      document.querySelectorAll('[data-toggle-module]').forEach((p) => {
+        p.classList.remove('dragging', 'drag-over');
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-move-module]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-move-module');
+      const dir = Number(btn.getAttribute('data-dir'));
+      moveModuleByStep(key, dir);
+    });
+  });
+
+  document.querySelectorAll('[data-close-module]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-close-module');
+      setModuleVisible(key, false);
+    });
+  });
+
+  document.getElementById('showAllModulesBtn')?.addEventListener('click', () => {
+    for (const k of MODULE_KEYS) {
+      prefs.visibleModules[k] = true;
+    }
+    savePrefs();
+    renderModulesVisibility();
+    showToast('Opened all modules');
+  });
+
+  document.getElementById('resetLayoutBtn')?.addEventListener('click', () => {
+    for (const k of MODULE_KEYS) {
+      prefs.visibleModules[k] = true;
+    }
+    prefs.moduleOrder = [...MODULE_KEYS];
+    savePrefs();
+    renderModulesVisibility();
+    showToast('Restored default module layout');
+  });
+
   // Popular SEO Conversion Links (smooth SPA navigation + shareable URL)
   document.querySelectorAll('[data-seo-from]').forEach((link) => {
     link.addEventListener('click', (e) => {
@@ -945,6 +1194,7 @@ function bindEvents() {
       if (isValidZone(fromId) && isValidZone(toId)) {
         prefs.sourceZone = fromId;
         prefs.targetZone = toId;
+        prefs.visibleModules.oneToOne = true;
         savePrefs();
         renderAll();
         updatePairDocumentTitle();
@@ -973,6 +1223,9 @@ function bindEvents() {
     }
     if ((e.key === '/' && !isTyping) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
       e.preventDefault();
+      if (!prefs.visibleModules.quick) {
+        setModuleVisible('quick', true, { silent: true });
+      }
       el.quickInput.focus();
       el.quickInput.select();
     } else if (!isTyping && e.key.toLowerCase() === 'n') {

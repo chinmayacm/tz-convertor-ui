@@ -147,18 +147,52 @@
       </div>
     </header>
 
-    <main class="main-grid">
+    <!-- Module Visibility & Order Bar (click to toggle, drag to rearrange) -->
+    <nav class="module-bar" id="moduleBar" aria-label="Toggle and rearrange app modules">
+      <span class="module-bar-label" title="Click to toggle · Drag pills to reorder">Modules:</span>
+      <div class="module-pills" id="modulePills">
+        <button type="button" class="module-pill active" draggable="true" data-toggle-module="quick" aria-pressed="true" title="Click to toggle · Drag to reorder">
+          <span class="drag-grip" aria-hidden="true">⋮⋮</span> ⚡ Quick Parse
+        </button>
+        <button type="button" class="module-pill active" draggable="true" data-toggle-module="oneToOne" aria-pressed="true" title="Click to toggle · Drag to reorder">
+          <span class="drag-grip" aria-hidden="true">⋮⋮</span> ⇄ 1-to-1 Converter
+        </button>
+        <button type="button" class="module-pill active" draggable="true" data-toggle-module="multi" aria-pressed="true" title="Click to toggle · Drag to reorder">
+          <span class="drag-grip" aria-hidden="true">⋮⋮</span> 🎚 Multi-Zone Timeline
+        </button>
+        <button type="button" class="module-pill active" draggable="true" data-toggle-module="guide" aria-pressed="true" title="Click to toggle · Drag to reorder">
+          <span class="drag-grip" aria-hidden="true">⋮⋮</span> 📚 Guide &amp; FAQ
+        </button>
+      </div>
+      <div class="module-bar-actions">
+        <button type="button" class="module-show-all hidden" id="showAllModulesBtn">
+          Show All
+        </button>
+        <button type="button" class="module-show-all hidden" id="resetLayoutBtn" title="Restore default module order and visibility">
+          Reset Layout
+        </button>
+      </div>
+    </nav>
+
+    <main class="main-grid" id="mainGrid">
       <!-- Feature 1: Quick Natural-Language Converter -->
-      <section class="card quick-section" aria-labelledby="quickHeading">
+      <section class="card quick-section" id="module-quick" aria-labelledby="quickHeading">
         <div class="quick-header">
           <label for="quickInput" id="quickHeading" class="section-eyebrow">
             ⚡ Quick Parse <span class="kbd-hint">Press <kbd>/</kbd> to focus</span>
           </label>
-          <div class="quick-examples">
-            <span class="examples-label">Try:</span>
-            <button type="button" class="chip-btn" data-example="3pm EST to IST">3pm EST to IST</button>
-            <button type="button" class="chip-btn" data-example="14:30 London in Tokyo, New York">14:30 London in Tokyo, NY</button>
-            <button type="button" class="chip-btn" data-example="tomorrow 9am PST to UTC">tomorrow 9am PST to UTC</button>
+          <div class="quick-header-right">
+            <div class="quick-examples">
+              <span class="examples-label">Try:</span>
+              <button type="button" class="chip-btn" data-example="3pm EST to IST">3pm EST to IST</button>
+              <button type="button" class="chip-btn" data-example="14:30 London in Tokyo, New York">14:30 London in Tokyo, NY</button>
+              <button type="button" class="chip-btn" data-example="tomorrow 9am PST to UTC">tomorrow 9am PST to UTC</button>
+            </div>
+            <div class="module-ctrl-group" role="group" aria-label="Quick Parse module controls">
+              <button type="button" class="module-move-btn" data-move-module="quick" data-dir="-1" title="Move module up" aria-label="Move Quick Parse up">↑</button>
+              <button type="button" class="module-move-btn" data-move-module="quick" data-dir="1" title="Move module down" aria-label="Move Quick Parse down">↓</button>
+              <button type="button" class="module-close-btn" data-close-module="quick" title="Close Quick Parse module" aria-label="Close Quick Parse module">✕</button>
+            </div>
           </div>
         </div>
 
@@ -179,7 +213,7 @@
       </section>
 
       <!-- Feature 2 & 4: 1-to-1 Converter + Favorite Pairs -->
-      <section class="card one-to-one-section" aria-labelledby="oneToOneHeading">
+      <section class="card one-to-one-section" id="module-oneToOne" aria-labelledby="oneToOneHeading">
         <div class="section-header">
           <div>
             <h2 id="oneToOneHeading" class="section-title">1-to-1 Converter</h2>
@@ -192,6 +226,11 @@
             <button type="button" class="btn btn-accent btn-sm" id="copyPairInviteBtn" title="Copy formatted conversion for invite or chat">
               📋 Copy Result
             </button>
+            <div class="module-ctrl-group" role="group" aria-label="1-to-1 Converter module controls">
+              <button type="button" class="module-move-btn" data-move-module="oneToOne" data-dir="-1" title="Move module up" aria-label="Move 1-to-1 Converter up">↑</button>
+              <button type="button" class="module-move-btn" data-move-module="oneToOne" data-dir="1" title="Move module down" aria-label="Move 1-to-1 Converter down">↓</button>
+              <button type="button" class="module-close-btn" data-close-module="oneToOne" title="Close 1-to-1 Converter module" aria-label="Close 1-to-1 Converter module">✕</button>
+            </div>
           </div>
         </div>
 
@@ -276,7 +315,7 @@
       </section>
 
       <!-- Feature 3 & 4: Multi-Zone Comparison Board + Interactive Time Slider -->
-      <section class="card multi-section" aria-labelledby="multiHeading">
+      <section class="card multi-section" id="module-multi" aria-labelledby="multiHeading">
         <div class="section-header">
           <div>
             <h2 id="multiHeading" class="section-title">Multi-Zone Timeline &amp; Comparison</h2>
@@ -292,6 +331,11 @@
             <button type="button" class="btn btn-primary btn-sm" id="addBoardZoneBtn">
               + Add Zone
             </button>
+            <div class="module-ctrl-group" role="group" aria-label="Multi-Zone Timeline module controls">
+              <button type="button" class="module-move-btn" data-move-module="multi" data-dir="-1" title="Move module up" aria-label="Move Multi-Zone Timeline up">↑</button>
+              <button type="button" class="module-move-btn" data-move-module="multi" data-dir="1" title="Move module down" aria-label="Move Multi-Zone Timeline down">↓</button>
+              <button type="button" class="module-close-btn" data-close-module="multi" title="Close Multi-Zone Timeline module" aria-label="Close Multi-Zone Timeline module">✕</button>
+            </div>
           </div>
         </div>
 
@@ -344,9 +388,20 @@
       </section>
 
       <!-- Semantic Popular Conversions & FAQ (Crawlable & Interactive) -->
-      <section class="card seo-section" aria-labelledby="popularHeading">
-        <h2 id="popularHeading" class="section-title">Popular Time Zone Conversions</h2>
-        <p class="section-desc">Jump directly to common global time zone pairs (automatically adjusts for Daylight Saving Time):</p>
+      <section class="card seo-section" id="module-guide" aria-labelledby="popularHeading">
+        <div class="section-header">
+          <div>
+            <h2 id="popularHeading" class="section-title">Popular Time Zone Conversions</h2>
+            <p class="section-desc">Jump directly to common global time zone pairs (automatically adjusts for Daylight Saving Time):</p>
+          </div>
+          <div class="header-actions">
+            <div class="module-ctrl-group" role="group" aria-label="Guide and FAQ module controls">
+              <button type="button" class="module-move-btn" data-move-module="guide" data-dir="-1" title="Move module up" aria-label="Move Guide and FAQ up">↑</button>
+              <button type="button" class="module-move-btn" data-move-module="guide" data-dir="1" title="Move module down" aria-label="Move Guide and FAQ down">↓</button>
+              <button type="button" class="module-close-btn" data-close-module="guide" title="Close Guide &amp; FAQ module" aria-label="Close Guide and FAQ module">✕</button>
+            </div>
+          </div>
+        </div>
 
         <nav class="popular-links-grid" aria-label="Popular time zone pairs">
           <a class="popular-pair-link" href="?from=America/New_York&amp;to=Asia/Kolkata" data-seo-from="America/New_York" data-seo-to="Asia/Kolkata">EST to IST (New York → India)</a>
@@ -470,7 +525,7 @@
           </div>
           <div class="install-os-card">
             <h4>2. Local Preferences (<code>localStorage</code>)</h4>
-            <p>Your saved <code>From → To</code> pairs, ★ favorite zones, pinned multi-zone rows, <code>12h/24h</code> format, and <code>dark/light</code> theme are saved locally in your browser under the key <code>zoneshift_prefs_v1</code> so your setup persists between sessions.</p>
+            <p>Your saved <code>From → To</code> pairs, ★ favorite zones, pinned multi-zone rows, module visibility &amp; order, <code>12h/24h</code> format, and <code>dark/light</code> theme are saved locally in your browser under the key <code>zoneshift_prefs_v1</code> so your setup persists between sessions.</p>
           </div>
           <div class="install-os-card">
             <h4>3. Offline App Cache (Service Worker)</h4>
