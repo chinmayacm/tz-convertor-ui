@@ -8,10 +8,10 @@ A lightweight, zero-dependency Time Zone Converter, World Clock, and Meeting Pla
 
 1. **⚡ Quick Natural-Language Input** — Type expressions like `"3pm EST to IST"`, `"14:30 London in Tokyo, New York"`, `"tomorrow 9am PST to UTC"`, or `"5pm PST"` for instant live conversion.
 2. **⇄ Bidirectional 1-to-1 Converter** — Pick any source and target time zones, swap with one click, and edit *either* side's time or date to convert forward or backward.
-3. **🎚 Multi-Zone Timeline & Scrubber** — Pin 3+ time zones simultaneously, scrub across the day in 15-minute increments, or click any color-coded hour block (`Work`, `Morning/Evening`, `Night`) to preview meeting times.
+3. **🎚 Multi-Zone Timeline & Scrubber** — Pin 3+ time zones simultaneously, reorder rows via drag-and-drop (`⋮⋮`) or `↑`/`↓` buttons, set any row as the **Reference** zone in-place, customize **Work & Night hours** (`⚙ Customize Hours`), and scrub or click any color-coded hour block to preview meeting times.
 4. **★ Favorites & One-Click Invite Copy** — Star favorite zones, save frequently used `From → To` pairs, and copy single-line summaries or multi-line meeting invite blocks for Slack, Teams, Email, or Calendar invites.
 5. **🧩 Modular, Rearrangeable Layout** — Close sub-modules you don't need (`✕` or via the **Modules** bar) to keep a compact single-tool view, and rearrange modules by dragging pills (`⋮⋮`) or clicking `↑` / `↓` on any card.
-6. **📌 Sticky Top Controls** — The **Live / Custom Time** badge, **`Now`** reset button, **`12h / 24h`** format switch, theme toggle, and privacy policy stay pinned at the top while scrolling.
+6. **📌 Sticky Top Controls & Configurable Base Zone** — Switch your primary conversion anchor (`🏠 Base: ...`) from your auto-detected system time zone to any zone (e.g. `UTC`, `EST`, `London`) across Quick Parse, 1-to-1, and the Multi-Zone Timeline, while **`Now`** and **`12h / 24h`** stay pinned while scrolling.
 7. **🔍 Shareable Links & SEO-Ready** — Deep-link directly to any pair or query (e.g. `?from=America/New_York&to=Asia/Kolkata` or `?q=3pm+EST+to+IST`), backed by Schema.org `WebApplication` + `FAQPage` JSON-LD, Open Graph / Twitter cards, `robots.txt`, and `sitemap.xml`.
 
 ## Quick Start

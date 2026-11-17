@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zoneshift-v5';
+const CACHE_NAME = 'zoneshift-v7';
 const PRECACHE_ASSETS = [
   './',
   './index.html',

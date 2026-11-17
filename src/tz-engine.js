@@ -149,17 +149,38 @@ export function wallTimeToEpoch(
   return guess - offset2;
 }
 
+export const DEFAULT_HOUR_RANGES = {
+  workStart: 9,
+  workEnd: 18,
+  nightStart: 22,
+  nightEnd: 7,
+};
+
+export function isHourInRange(hour, start, end) {
+  if (start === end) return false;
+  return start < end
+    ? hour >= start && hour < end
+    : hour >= start || hour < end;
+}
+
 /**
  * Categorize local hour (0..23) for visual status badges and timeline coloring.
  */
-export function getDayPeriodStatus(hour) {
-  if (hour >= 9 && hour < 18) {
+export function getDayPeriodStatus(hour, hourRanges = DEFAULT_HOUR_RANGES) {
+  const {
+    workStart = 9,
+    workEnd = 18,
+    nightStart = 22,
+    nightEnd = 7,
+  } = hourRanges || DEFAULT_HOUR_RANGES;
+
+  if (isHourInRange(hour, workStart, workEnd)) {
     return { key: 'work', label: 'Work hours', icon: '☀' };
   }
-  if ((hour >= 7 && hour < 9) || (hour >= 18 && hour < 22)) {
-    return { key: 'awake', label: 'Flex / Awake', icon: '◐' };
+  if (isHourInRange(hour, nightStart, nightEnd)) {
+    return { key: 'night', label: 'Night / Quiet', icon: '☾' };
   }
-  return { key: 'night', label: 'Night / Quiet', icon: '☾' };
+  return { key: 'awake', label: 'Flex / Awake', icon: '◐' };
 }
 
 export function formatTimeFromParts({ hour, minute }, use24Hour = false) {
@@ -222,13 +243,19 @@ export function formatOffsetDifference(sourceOffsetMin, targetOffsetMin) {
 /**
  * Build full snapshot of a zone at epochMs relative to a referenceZone.
  */
-export function getZoneSnapshot(epochMs, timeZone, referenceZone = timeZone, use24Hour = false) {
+export function getZoneSnapshot(
+  epochMs,
+  timeZone,
+  referenceZone = timeZone,
+  use24Hour = false,
+  hourRanges = DEFAULT_HOUR_RANGES
+) {
   const parts = getZonedParts(epochMs, timeZone);
   const offsetMin = getOffsetMinutes(epochMs, timeZone);
   const refOffsetMin = getOffsetMinutes(epochMs, referenceZone);
   const timeFormatted = formatTimeFromParts(parts, use24Hour);
   const dayDelta = getDayDelta(epochMs, referenceZone, timeZone);
-  const status = getDayPeriodStatus(parts.hour);
+  const status = getDayPeriodStatus(parts.hour, hourRanges);
   const abbrev = getShortZoneAbbrev(epochMs, timeZone);
 
   let dayBadge = 'Same day';
@@ -438,9 +465,14 @@ export function formatOneToOneInvite(epochMs, sourceZone, targetZone, use24Hour 
   return `${src.dateFormatted} · ${src.timeFormatted.full} ${src.abbrev} (${src.cityName}) → ${tgt.timeFormatted.full} ${tgt.abbrev} (${tgt.cityName})${dayNote}`;
 }
 
-export function formatMultiZoneCompact(epochMs, zoneIds, use24Hour = false) {
+export function formatMultiZoneCompact(
+  epochMs,
+  zoneIds,
+  use24Hour = false,
+  referenceZone = null
+) {
   if (!zoneIds.length) return '';
-  const refZone = zoneIds[0];
+  const refZone = referenceZone || zoneIds[0];
   const refSnap = getZoneSnapshot(epochMs, refZone, refZone, use24Hour);
   const segments = zoneIds.map((id) => {
     const snap = getZoneSnapshot(epochMs, id, refZone, use24Hour);
@@ -450,9 +482,14 @@ export function formatMultiZoneCompact(epochMs, zoneIds, use24Hour = false) {
   return `${refSnap.dateFormatted}: ${segments.join(' / ')}`;
 }
 
-export function formatMultiZoneInviteBlock(epochMs, zoneIds, use24Hour = false) {
+export function formatMultiZoneInviteBlock(
+  epochMs,
+  zoneIds,
+  use24Hour = false,
+  referenceZone = null
+) {
   if (!zoneIds.length) return '';
-  const refZone = zoneIds[0];
+  const refZone = referenceZone || zoneIds[0];
   const lines = ['Proposed Time Across Time Zones:'];
   for (const id of zoneIds) {
     const snap = getZoneSnapshot(epochMs, id, refZone, use24Hour);

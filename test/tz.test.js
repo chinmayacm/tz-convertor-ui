@@ -7,6 +7,7 @@ import {
   resolveZoneToken,
   formatOneToOneInvite,
   formatMultiZoneCompact,
+  getDayPeriodStatus,
 } from '../src/tz-engine.js';
 import { parseQuickQuery } from '../src/quick-parse.js';
 
@@ -91,4 +92,14 @@ test('invite formatters produce clean readable strings', () => {
   assert.match(multi, /14:00 UTC/);
   assert.match(multi, /19:30/);
   assert.match(multi, /09:00/);
+});
+
+test('getDayPeriodStatus supports custom work and wrap-around night hours', () => {
+  const custom = { workStart: 10, workEnd: 19, nightStart: 23, nightEnd: 6 };
+  assert.equal(getDayPeriodStatus(9, custom).key, 'awake');
+  assert.equal(getDayPeriodStatus(10, custom).key, 'work');
+  assert.equal(getDayPeriodStatus(18, custom).key, 'work');
+  assert.equal(getDayPeriodStatus(22, custom).key, 'awake');
+  assert.equal(getDayPeriodStatus(23, custom).key, 'night');
+  assert.equal(getDayPeriodStatus(4, custom).key, 'night');
 });

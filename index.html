@@ -120,6 +120,12 @@
       </div>
 
       <div class="topbar-controls">
+        <button type="button" class="btn btn-subtle btn-sm base-zone-btn" id="baseZoneBtn" title="Change default base/home time zone for conversions">
+          <span>🏠 Base:</span>
+          <strong id="baseZoneLabel">Local</strong>
+          <span class="zp-chevron">▾</span>
+        </button>
+
         <div class="mode-badge" id="clockModeBadge" title="Live clock vs custom selected time">
           <span class="pulse-dot" id="liveDot"></span>
           <span id="clockModeText">Live · Now</span>
@@ -377,9 +383,31 @@
           </div>
 
           <div class="legend-row">
-            <span class="legend-item"><i class="dot dot-work"></i> Work (9am–6pm)</span>
+            <span class="legend-item"><i class="dot dot-work"></i> <span id="legendWorkText">Work (9am–6pm)</span></span>
             <span class="legend-item"><i class="dot dot-awake"></i> Morning / Evening</span>
-            <span class="legend-item"><i class="dot dot-night"></i> Night (10pm–7am)</span>
+            <span class="legend-item"><i class="dot dot-night"></i> <span id="legendNightText">Night (10pm–7am)</span></span>
+            <button type="button" class="hours-toggle-btn" id="toggleHoursConfigBtn" aria-expanded="false">
+              ⚙ Customize Hours
+            </button>
+          </div>
+
+          <!-- Collapsible Work & Night Hours Editor -->
+          <div class="hours-config-panel hidden" id="hoursConfigPanel">
+            <div class="hours-config-group">
+              <span class="hc-title"><i class="dot dot-work"></i> Work Hours:</span>
+              <select id="workStartSelect" class="hc-select" aria-label="Work start hour"></select>
+              <span class="hc-to">to</span>
+              <select id="workEndSelect" class="hc-select" aria-label="Work end hour"></select>
+            </div>
+            <div class="hours-config-group">
+              <span class="hc-title"><i class="dot dot-night"></i> Night Hours:</span>
+              <select id="nightStartSelect" class="hc-select" aria-label="Night start hour"></select>
+              <span class="hc-to">to</span>
+              <select id="nightEndSelect" class="hc-select" aria-label="Night end hour"></select>
+            </div>
+            <button type="button" class="module-show-all" id="resetHoursBtn" title="Restore default 9am–6pm work and 10pm–7am night hours">
+              Reset Defaults
+            </button>
           </div>
         </div>
 
@@ -473,6 +501,9 @@
       <div class="picker-filter-tabs">
         <button type="button" class="tab-chip active" data-filter="all" id="filterAllBtn">All Zones</button>
         <button type="button" class="tab-chip" data-filter="favorites" id="filterFavBtn">★ Favorites</button>
+        <button type="button" class="tab-chip local-reset-chip hidden" id="useSystemLocalBtn" title="Reset base zone to your system's detected local time zone">
+          📍 System Local
+        </button>
       </div>
       <ul class="picker-results" id="pickerResultsList" role="listbox"></ul>
     </div>

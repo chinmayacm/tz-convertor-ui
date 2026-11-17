@@ -1,5 +1,6 @@
 import { DEFAULT_FAVORITE_ZONES } from './tz-data.js';
 import {
+  DEFAULT_HOUR_RANGES,
   formatMultiZoneCompact,
   formatMultiZoneInviteBlock,
   formatOneToOneInvite,
@@ -56,11 +57,14 @@ function createDefaultState() {
   return {
     theme: 'dark',
     use24Hour: false,
+    baseZone: local,
+    referenceZone: local,
     sourceZone: local,
     targetZone: defaultTarget,
     boardZones,
     favoriteZones,
     savedPairs,
+    hourRanges: { ...DEFAULT_HOUR_RANGES },
     visibleModules: {
       quick: true,
       oneToOne: true,
@@ -68,6 +72,21 @@ function createDefaultState() {
       guide: true,
     },
     moduleOrder: [...MODULE_KEYS],
+  };
+}
+
+function normalizeHourValue(val, fallback) {
+  const n = Number(val);
+  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : fallback;
+}
+
+function normalizeHourRanges(raw) {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_HOUR_RANGES };
+  return {
+    workStart: normalizeHourValue(raw.workStart, DEFAULT_HOUR_RANGES.workStart),
+    workEnd: normalizeHourValue(raw.workEnd, DEFAULT_HOUR_RANGES.workEnd),
+    nightStart: normalizeHourValue(raw.nightStart, DEFAULT_HOUR_RANGES.nightStart),
+    nightEnd: normalizeHourValue(raw.nightEnd, DEFAULT_HOUR_RANGES.nightEnd),
   };
 }
 
@@ -102,20 +121,32 @@ function loadPrefs() {
         loadedModules.oneToOne = true;
       }
     }
+    const boardZones = Array.isArray(parsed.boardZones) && parsed.boardZones.length
+      ? uniqueZones(parsed.boardZones)
+      : defaults.boardZones;
+    const baseZone = isValidZone(parsed.baseZone)
+      ? normalizeZoneId(parsed.baseZone)
+      : defaults.baseZone;
+    const rawRef = isValidZone(parsed.referenceZone)
+      ? normalizeZoneId(parsed.referenceZone)
+      : baseZone;
+    const referenceZone = boardZones.includes(rawRef) ? rawRef : boardZones[0];
+
     return {
       theme: parsed.theme === 'light' ? 'light' : 'dark',
       use24Hour: Boolean(parsed.use24Hour),
+      baseZone,
+      referenceZone,
       sourceZone: isValidZone(parsed.sourceZone) ? normalizeZoneId(parsed.sourceZone) : defaults.sourceZone,
       targetZone: isValidZone(parsed.targetZone) ? normalizeZoneId(parsed.targetZone) : defaults.targetZone,
-      boardZones: Array.isArray(parsed.boardZones) && parsed.boardZones.length
-        ? uniqueZones(parsed.boardZones)
-        : defaults.boardZones,
+      boardZones,
       favoriteZones: Array.isArray(parsed.favoriteZones)
         ? uniqueZones(parsed.favoriteZones)
         : defaults.favoriteZones,
       savedPairs: Array.isArray(parsed.savedPairs)
         ? parsed.savedPairs.filter((p) => p && isValidZone(p.from) && isValidZone(p.to))
         : defaults.savedPairs,
+      hourRanges: normalizeHourRanges(parsed.hourRanges),
       visibleModules: loadedModules,
       moduleOrder: normalizeModuleOrder(parsed.moduleOrder),
     };
@@ -126,10 +157,19 @@ function loadPrefs() {
 
 const prefs = loadPrefs();
 
+function getBoardReferenceZone() {
+  if (!prefs.boardZones.length) return prefs.baseZone || getLocalZoneId();
+  if (prefs.referenceZone && prefs.boardZones.includes(prefs.referenceZone)) {
+    return prefs.referenceZone;
+  }
+  prefs.referenceZone = prefs.boardZones[0];
+  return prefs.referenceZone;
+}
+
 const runtime = {
   isLive: true,
   epochMs: Date.now(),
-  pickerMode: null, // 'source' | 'target' | 'board'
+  pickerMode: null, // 'base' | 'source' | 'target' | 'board'
   pickerFilter: 'all', // 'all' | 'favorites'
   pickerFocusIndex: 0,
   pickerCurrentItems: [],
@@ -147,6 +187,8 @@ function savePrefs() {
 
 // DOM References
 const el = {
+  baseZoneBtn: document.getElementById('baseZoneBtn'),
+  baseZoneLabel: document.getElementById('baseZoneLabel'),
   clockModeText: document.getElementById('clockModeText'),
   liveDot: document.getElementById('liveDot'),
   resetNowBtn: document.getElementById('resetNowBtn'),
@@ -194,6 +236,15 @@ const el = {
   scrubberTimePill: document.getElementById('scrubberTimePill'),
   scrubberNowBtn: document.getElementById('scrubberNowBtn'),
   timelineSlider: document.getElementById('timelineSlider'),
+  legendWorkText: document.getElementById('legendWorkText'),
+  legendNightText: document.getElementById('legendNightText'),
+  toggleHoursConfigBtn: document.getElementById('toggleHoursConfigBtn'),
+  hoursConfigPanel: document.getElementById('hoursConfigPanel'),
+  workStartSelect: document.getElementById('workStartSelect'),
+  workEndSelect: document.getElementById('workEndSelect'),
+  nightStartSelect: document.getElementById('nightStartSelect'),
+  nightEndSelect: document.getElementById('nightEndSelect'),
+  resetHoursBtn: document.getElementById('resetHoursBtn'),
   boardList: document.getElementById('boardList'),
 
   zonePickerModal: document.getElementById('zonePickerModal'),
@@ -202,6 +253,7 @@ const el = {
   pickerSearchInput: document.getElementById('pickerSearchInput'),
   filterAllBtn: document.getElementById('filterAllBtn'),
   filterFavBtn: document.getElementById('filterFavBtn'),
+  useSystemLocalBtn: document.getElementById('useSystemLocalBtn'),
   pickerResultsList: document.getElementById('pickerResultsList'),
 
   installHelpModal: document.getElementById('installHelpModal'),
@@ -291,6 +343,11 @@ function renderHeaderState() {
   el.fmt24Btn.classList.toggle('active', prefs.use24Hour);
   el.resetNowBtn.classList.toggle('btn-now-highlight', !runtime.isLive);
 
+  if (el.baseZoneLabel) {
+    const baseSnap = getZoneSnapshot(runtime.epochMs, prefs.baseZone, prefs.baseZone, prefs.use24Hour);
+    el.baseZoneLabel.textContent = `${baseSnap.cityName} (${baseSnap.abbrev})`;
+  }
+
   if (runtime.isLive) {
     el.clockModeText.textContent = 'Live · Now';
     el.liveDot.classList.remove('paused');
@@ -333,10 +390,71 @@ function renderBadges(snapshot, showDayShift = false) {
   return html;
 }
 
+function formatHourShort(hour, use24Hour) {
+  if (use24Hour) return `${String(hour).padStart(2, '0')}:00`;
+  const suffix = hour >= 12 ? 'pm' : 'am';
+  const h12 = hour % 12 || 12;
+  return `${h12}${suffix}`;
+}
+
+function formatHourOptionLabel(hour, use24Hour) {
+  if (use24Hour) return `${String(hour).padStart(2, '0')}:00`;
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const h12 = hour % 12 || 12;
+  return `${h12}:00 ${suffix}`;
+}
+
+function renderHoursConfig() {
+  const hr = normalizeHourRanges(prefs.hourRanges);
+  prefs.hourRanges = hr;
+
+  if (el.legendWorkText) {
+    el.legendWorkText.textContent = `Work (${formatHourShort(hr.workStart, prefs.use24Hour)}–${formatHourShort(hr.workEnd, prefs.use24Hour)})`;
+  }
+  if (el.legendNightText) {
+    el.legendNightText.textContent = `Night (${formatHourShort(hr.nightStart, prefs.use24Hour)}–${formatHourShort(hr.nightEnd, prefs.use24Hour)})`;
+  }
+
+  const selects = [
+    [el.workStartSelect, hr.workStart],
+    [el.workEndSelect, hr.workEnd],
+    [el.nightStartSelect, hr.nightStart],
+    [el.nightEndSelect, hr.nightEnd],
+  ];
+
+  let optionsHtml = '';
+  for (let h = 0; h < 24; h++) {
+    optionsHtml += `<option value="${h}">${formatHourOptionLabel(h, prefs.use24Hour)}</option>`;
+  }
+
+  for (const [sel, val] of selects) {
+    if (!sel) continue;
+    if (sel.dataset.fmt !== String(prefs.use24Hour)) {
+      sel.innerHTML = optionsHtml;
+      sel.dataset.fmt = String(prefs.use24Hour);
+    }
+    if (document.activeElement !== sel) {
+      sel.value = String(val);
+    }
+  }
+}
+
 function renderOneToOne() {
   const epoch = runtime.epochMs;
-  const src = getZoneSnapshot(epoch, prefs.sourceZone, prefs.sourceZone, prefs.use24Hour);
-  const tgt = getZoneSnapshot(epoch, prefs.targetZone, prefs.sourceZone, prefs.use24Hour);
+  const src = getZoneSnapshot(
+    epoch,
+    prefs.sourceZone,
+    prefs.sourceZone,
+    prefs.use24Hour,
+    prefs.hourRanges
+  );
+  const tgt = getZoneSnapshot(
+    epoch,
+    prefs.targetZone,
+    prefs.sourceZone,
+    prefs.use24Hour,
+    prefs.hourRanges
+  );
 
   el.sourceZoneTitle.textContent = src.displayName;
   el.sourceZoneMeta.textContent = `${src.abbrev} · ${src.utcOffsetLabel}`;
@@ -380,11 +498,19 @@ function renderOneToOne() {
 
 function renderMultiBoard() {
   if (!prefs.boardZones.length) {
-    prefs.boardZones = [getLocalZoneId(), 'UTC'];
+    prefs.boardZones = [prefs.baseZone || getLocalZoneId(), 'UTC'];
   }
-  const refZone = prefs.boardZones[0];
+  renderHoursConfig();
+
+  const refZone = getBoardReferenceZone();
   const epoch = runtime.epochMs;
-  const refSnap = getZoneSnapshot(epoch, refZone, refZone, prefs.use24Hour);
+  const refSnap = getZoneSnapshot(
+    epoch,
+    refZone,
+    refZone,
+    prefs.use24Hour,
+    prefs.hourRanges
+  );
 
   el.scrubberRefName.textContent = `${refSnap.cityName} (${refSnap.abbrev})`;
   el.scrubberTimePill.textContent = refSnap.timeFormatted.full;
@@ -410,8 +536,14 @@ function renderMultiBoard() {
 
   const rowsHtml = prefs.boardZones
     .map((zoneId, rowIdx) => {
-      const snap = getZoneSnapshot(epoch, zoneId, refZone, prefs.use24Hour);
-      const isRef = rowIdx === 0;
+      const snap = getZoneSnapshot(
+        epoch,
+        zoneId,
+        refZone,
+        prefs.use24Hour,
+        prefs.hourRanges
+      );
+      const isRef = zoneId === refZone;
       const isFav = prefs.favoriteZones.includes(zoneId);
 
       // Build 24 synchronized 1-hour columns aligned to reference zone's day
@@ -419,7 +551,7 @@ function renderMultiBoard() {
       for (let slot = 0; slot < 24; slot++) {
         const slotEpoch = refDayStartEpoch + slot * 3600000;
         const slotParts = getZonedParts(slotEpoch, zoneId);
-        const period = getDayPeriodStatus(slotParts.hour);
+        const period = getDayPeriodStatus(slotParts.hour, prefs.hourRanges);
         const label = prefs.use24Hour
           ? String(slotParts.hour).padStart(2, '0')
           : `${slotParts.hour % 12 || 12}${slotParts.hour >= 12 ? 'p' : 'a'}`;
@@ -436,6 +568,7 @@ function renderMultiBoard() {
         <div class="board-row ${isRef ? 'is-ref' : ''}" data-zone="${escapeHtml(zoneId)}">
           <div class="board-row-top">
             <div class="board-zone-info">
+              <span class="row-drag-handle" title="Drag to reorder time zone" aria-hidden="true">⋮⋮</span>
               <div>
                 <div class="board-zone-title">
                   ${escapeHtml(snap.displayName)}
@@ -458,9 +591,11 @@ function renderMultiBoard() {
               <div class="row-actions">
                 ${
                   !isRef
-                    ? `<button type="button" class="row-btn" data-action="make-ref" data-zone="${escapeHtml(zoneId)}" title="Set as Reference Zone">Pin Top</button>`
+                    ? `<button type="button" class="row-btn" data-action="make-ref" data-zone="${escapeHtml(zoneId)}" title="Use this zone as the Reference Zone">Set Reference</button>`
                     : ''
                 }
+                <button type="button" class="row-btn" data-action="move-up" data-zone="${escapeHtml(zoneId)}" ${rowIdx === 0 ? 'disabled' : ''} title="Move zone up" aria-label="Move ${escapeHtml(snap.cityName)} up">↑</button>
+                <button type="button" class="row-btn" data-action="move-down" data-zone="${escapeHtml(zoneId)}" ${rowIdx === prefs.boardZones.length - 1 ? 'disabled' : ''} title="Move zone down" aria-label="Move ${escapeHtml(snap.cityName)} down">↓</button>
                 <button type="button" class="row-btn ${isFav ? 'starred' : ''}" data-action="fav" data-zone="${escapeHtml(zoneId)}" title="Toggle Favorite">${isFav ? '★' : '☆'}</button>
                 ${
                   prefs.boardZones.length > 1
@@ -494,7 +629,7 @@ function renderQuickParse() {
 
   const parsed = parseQuickQuery(val, {
     nowEpoch: Date.now(),
-    defaultZone: prefs.sourceZone,
+    defaultZone: prefs.baseZone,
   });
   runtime.lastQuickParsed = parsed;
   el.quickResultPanel.classList.remove('hidden');
@@ -696,11 +831,22 @@ function openZonePicker(mode) {
   runtime.pickerMode = mode;
   runtime.pickerFocusIndex = 0;
   const titles = {
+    base: 'Select Default Base / Home Time Zone',
     source: 'Select Source ("From") Time Zone',
     target: 'Select Target ("To") Time Zone',
     board: 'Add Time Zone to Multi-Zone Board',
   };
   el.pickerModalTitle.textContent = titles[mode] || 'Select Time Zone';
+
+  if (el.useSystemLocalBtn) {
+    const sysLocal = getLocalZoneId();
+    const showLocalReset = mode === 'base' && prefs.baseZone !== sysLocal;
+    el.useSystemLocalBtn.classList.toggle('hidden', !showLocalReset);
+    if (showLocalReset) {
+      el.useSystemLocalBtn.textContent = `📍 System Local (${getZoneShortTitle(sysLocal)})`;
+    }
+  }
+
   el.pickerSearchInput.value = '';
   el.zonePickerModal.classList.remove('hidden');
   renderPickerList();
@@ -756,7 +902,24 @@ function renderPickerList() {
 
 function selectZoneFromPicker(zoneId) {
   const norm = normalizeZoneId(zoneId);
-  if (runtime.pickerMode === 'source') {
+  if (runtime.pickerMode === 'base') {
+    const prevBase = prefs.baseZone;
+    prefs.baseZone = norm;
+    prefs.referenceZone = norm;
+    prefs.sourceZone = norm;
+    if (prefs.targetZone === norm) {
+      prefs.targetZone =
+        prevBase && prevBase !== norm
+          ? prevBase
+          : norm === 'UTC'
+            ? 'America/New_York'
+            : 'UTC';
+    }
+    if (!prefs.boardZones.includes(norm)) {
+      prefs.boardZones.unshift(norm);
+    }
+    showToast(`🏠 Set default base zone to ${getZoneShortTitle(norm)}`);
+  } else if (runtime.pickerMode === 'source') {
     // Preserve wall-clock time in the newly chosen source zone if user already picked a custom time
     if (!runtime.isLive) {
       const oldParts = getZonedParts(runtime.epochMs, prefs.sourceZone);
@@ -842,7 +1005,9 @@ function bindEvents() {
     }
   });
 
-  // 1-to-1 Zone Pickers & Favorites
+  // Base & 1-to-1 Zone Pickers + Favorites
+  el.baseZoneBtn?.addEventListener('click', () => openZonePicker('base'));
+  el.useSystemLocalBtn?.addEventListener('click', () => selectZoneFromPicker(getLocalZoneId()));
   el.sourceZoneBtn.addEventListener('click', () => openZonePicker('source'));
   el.targetZoneBtn.addEventListener('click', () => openZonePicker('target'));
   el.addBoardZoneBtn.addEventListener('click', () => openZonePicker('board'));
@@ -927,19 +1092,29 @@ function bindEvents() {
   });
 
   el.copyCompactBtn.addEventListener('click', () => {
-    const text = formatMultiZoneCompact(runtime.epochMs, prefs.boardZones, prefs.use24Hour);
+    const text = formatMultiZoneCompact(
+      runtime.epochMs,
+      prefs.boardZones,
+      prefs.use24Hour,
+      getBoardReferenceZone()
+    );
     copyText(text, 'Copied compact timeline summary');
   });
 
   el.copyMeetingBlockBtn.addEventListener('click', () => {
-    const text = formatMultiZoneInviteBlock(runtime.epochMs, prefs.boardZones, prefs.use24Hour);
+    const text = formatMultiZoneInviteBlock(
+      runtime.epochMs,
+      prefs.boardZones,
+      prefs.use24Hour,
+      getBoardReferenceZone()
+    );
     copyText(text, 'Copied meeting invite block');
   });
 
   // Timeline Scrubber & Nudge buttons
   el.timelineSlider.addEventListener('input', () => {
     const mins = Number(el.timelineSlider.value);
-    const refZone = prefs.boardZones[0] || getLocalZoneId();
+    const refZone = getBoardReferenceZone();
     const refParts = getZonedParts(runtime.epochMs, refZone);
     const nextEpoch = wallTimeToEpoch(
       {
@@ -954,6 +1129,34 @@ function bindEvents() {
     setCustomEpoch(nextEpoch);
   });
 
+  // Work & Night Hours Configurator
+  el.toggleHoursConfigBtn?.addEventListener('click', () => {
+    const isHidden = el.hoursConfigPanel.classList.toggle('hidden');
+    el.toggleHoursConfigBtn.setAttribute('aria-expanded', String(!isHidden));
+  });
+
+  const handleHourRangeChange = () => {
+    prefs.hourRanges = normalizeHourRanges({
+      workStart: Number(el.workStartSelect.value),
+      workEnd: Number(el.workEndSelect.value),
+      nightStart: Number(el.nightStartSelect.value),
+      nightEnd: Number(el.nightEndSelect.value),
+    });
+    savePrefs();
+    renderAll();
+  };
+
+  [el.workStartSelect, el.workEndSelect, el.nightStartSelect, el.nightEndSelect].forEach((sel) => {
+    sel?.addEventListener('change', handleHourRangeChange);
+  });
+
+  el.resetHoursBtn?.addEventListener('click', () => {
+    prefs.hourRanges = { ...DEFAULT_HOUR_RANGES };
+    savePrefs();
+    renderAll();
+    showToast('Restored default work & night hours');
+  });
+
   document.querySelectorAll('[data-step]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const stepMin = Number(btn.getAttribute('data-step'));
@@ -966,7 +1169,7 @@ function bindEvents() {
     });
   });
 
-  // Multi-Zone Board delegation (click hour cell, pin ref, fav, remove)
+  // Multi-Zone Board delegation (click hour cell, set ref, move up/down, fav, remove)
   el.boardList.addEventListener('click', (e) => {
     const hourBtn = e.target.closest('[data-slot-epoch]');
     if (hourBtn) {
@@ -975,22 +1178,118 @@ function bindEvents() {
     }
 
     const actionBtn = e.target.closest('[data-action]');
-    if (!actionBtn) return;
+    if (!actionBtn || actionBtn.disabled) return;
     const action = actionBtn.getAttribute('data-action');
     const zone = actionBtn.getAttribute('data-zone');
 
     if (action === 'make-ref') {
-      prefs.boardZones = [zone, ...prefs.boardZones.filter((z) => z !== zone)];
+      prefs.referenceZone = zone;
       savePrefs();
       renderAll();
-      showToast(`Pinned ${getZoneShortTitle(zone)} as reference zone`);
+      showToast(`Set ${getZoneShortTitle(zone)} as Reference Zone`);
+    } else if (action === 'move-up' || action === 'move-down') {
+      const idx = prefs.boardZones.indexOf(zone);
+      const targetIdx = action === 'move-up' ? idx - 1 : idx + 1;
+      if (idx >= 0 && targetIdx >= 0 && targetIdx < prefs.boardZones.length) {
+        const copy = [...prefs.boardZones];
+        copy[idx] = copy[targetIdx];
+        copy[targetIdx] = zone;
+        prefs.boardZones = copy;
+        savePrefs();
+        renderMultiBoard();
+      }
     } else if (action === 'fav') {
       toggleFavoriteZone(zone);
     } else if (action === 'remove') {
       prefs.boardZones = prefs.boardZones.filter((z) => z !== zone);
+      if (prefs.referenceZone === zone) {
+        prefs.referenceZone = prefs.boardZones[0] || prefs.baseZone;
+      }
       savePrefs();
       renderAll();
     }
+  });
+
+  // Multi-Zone Row Drag-and-Drop (via .row-drag-handle)
+  let draggedZoneId = null;
+
+  el.boardList.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.row-drag-handle');
+    if (!handle) return;
+    const row = handle.closest('.board-row');
+    if (row) row.setAttribute('draggable', 'true');
+  });
+
+  el.boardList.addEventListener('mouseup', () => {
+    el.boardList.querySelectorAll('.board-row[draggable="true"]').forEach((r) => {
+      r.removeAttribute('draggable');
+    });
+  });
+
+  el.boardList.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.board-row');
+    if (!row || row.getAttribute('draggable') !== 'true') {
+      e.preventDefault();
+      return;
+    }
+    draggedZoneId = row.getAttribute('data-zone');
+    row.classList.add('dragging');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedZoneId);
+    }
+  });
+
+  el.boardList.addEventListener('dragover', (e) => {
+    if (!draggedZoneId) return;
+    const overRow = e.target.closest('.board-row');
+    if (!overRow) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    const overZone = overRow.getAttribute('data-zone');
+    el.boardList.querySelectorAll('.board-row.drag-over').forEach((r) => {
+      if (r !== overRow) r.classList.remove('drag-over');
+    });
+    if (overZone !== draggedZoneId) {
+      overRow.classList.add('drag-over');
+    }
+  });
+
+  el.boardList.addEventListener('dragleave', (e) => {
+    const row = e.target.closest('.board-row');
+    if (row && !row.contains(e.relatedTarget)) {
+      row.classList.remove('drag-over');
+    }
+  });
+
+  el.boardList.addEventListener('drop', (e) => {
+    const targetRow = e.target.closest('.board-row');
+    if (!targetRow) return;
+    e.preventDefault();
+    targetRow.classList.remove('drag-over');
+    const targetZone = targetRow.getAttribute('data-zone');
+    const sourceZone = draggedZoneId || e.dataTransfer?.getData('text/plain');
+    draggedZoneId = null;
+
+    if (!sourceZone || !targetZone || sourceZone === targetZone) return;
+    const fromIdx = prefs.boardZones.indexOf(sourceZone);
+    const toIdx = prefs.boardZones.indexOf(targetZone);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const next = [...prefs.boardZones];
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, sourceZone);
+    prefs.boardZones = next;
+    savePrefs();
+    renderMultiBoard();
+  });
+
+  el.boardList.addEventListener('dragend', () => {
+    draggedZoneId = null;
+    el.boardList.querySelectorAll('.board-row').forEach((r) => {
+      r.removeAttribute('draggable');
+      r.classList.remove('dragging', 'drag-over');
+    });
   });
 
   // Picker Modal events
