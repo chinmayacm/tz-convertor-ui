@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1e1b4b" />
+  <title>ZoneShift — Free Time Zone Converter, World Clock &amp; Meeting Planner</title>
+  <meta
+    name="description"
+    content="Free online and offline time zone converter &amp; meeting planner. Convert EST to IST, PST to UTC, London, Tokyo, and 400+ IANA time zones with natural text input, an interactive 24-hour slider, automatic DST handling, and one-click invite copy."
+  />
+  <meta
+    name="keywords"
+    content="time zone converter, world clock, meeting planner, EST to IST, PST to IST, UTC converter, GMT to EST, timezone calculator, daylight saving time converter, offline desktop clock PWA"
+  />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <link rel="canonical" href="https://chinmayacm.github.io/tz-convertor-ui/" />
+
+  <!-- Open Graph / Social Preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ZoneShift" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="ZoneShift — Time Zone Converter, World Clock &amp; Meeting Planner" />
+  <meta
+    property="og:description"
+    content="Convert time across 400+ time zones instantly. Type '3pm EST to IST', scrub a 24h multi-zone timeline, and copy formatted meeting invites — works in browser or installed offline on Windows, Linux, and macOS."
+  />
+  <meta property="og:url" content="https://chinmayacm.github.io/tz-convertor-ui/" />
+  <meta property="og:image" content="https://chinmayacm.github.io/tz-convertor-ui/icons/icon-512.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt" content="ZoneShift Time Zone Converter logo" />
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="ZoneShift — Free Time Zone Converter &amp; World Clock" />
+  <meta
+    name="twitter:description"
+    content="Fast, privacy-first time zone converter with natural text parsing ('3pm EST to IST'), multi-zone 24h timeline slider, and offline desktop PWA support."
+  />
+  <meta name="twitter:image" content="https://chinmayacm.github.io/tz-convertor-ui/icons/icon-512.png" />
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Schema.org Structured Data (WebApplication + FAQPage) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "name": "ZoneShift Time Zone Converter",
+          "url": "https://chinmayacm.github.io/tz-convertor-ui/",
+          "image": "https://chinmayacm.github.io/tz-convertor-ui/icons/icon-512.png",
+          "description": "Free browser and offline desktop time zone converter, world clock, and multi-zone meeting planner supporting 400+ IANA time zones with automatic Daylight Saving Time adjustments.",
+          "applicationCategory": "UtilitiesApplication",
+          "operatingSystem": "Windows, macOS, Linux, Android, iOS, Web",
+          "isAccessibleForFree": true,
+          "browserRequirements": "Requires JavaScript enabled",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "Natural language quick time conversion (e.g. 3pm EST to IST)",
+            "Bidirectional 1-to-1 time zone converter",
+            "Multi-zone 24-hour interactive timeline slider",
+            "Automatic Daylight Saving Time (DST) handling via IANA database",
+            "Saved favorite time zones and one-click meeting invite copy",
+            "Installable offline Progressive Web App for Windows, Linux, and macOS"
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Does ZoneShift automatically adjust for Daylight Saving Time (DST)?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. ZoneShift uses the official IANA Time Zone Database built into modern browsers and operating systems, automatically switching between standard and daylight offsets (such as EST/EDT, PST/PDT, GMT/BST, and CET/CEST) for any past, present, or future date you pick."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does it support 30-minute and 45-minute UTC offsets like IST and Nepal Time?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Every standard, half-hour, and 45-minute offset is supported accurately, including India Standard Time (Asia/Kolkata, UTC+5:30), Nepal Time (Asia/Kathmandu, UTC+5:45), Australian Central Time (UTC+9:30/+10:30), and Newfoundland Time (UTC-3:30/-2:30)."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I use ZoneShift offline on Windows, Linux, or macOS?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Click Install App in your browser to add ZoneShift as a standalone desktop application on Windows, Linux, or macOS. All assets are cached locally and zero data is sent to any server."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="topbar">
+      <div class="brand">
+        <img src="./icons/icon.svg" alt="" class="brand-icon" width="34" height="34" />
+        <div>
+          <h1 class="brand-title">ZoneShift</h1>
+          <p class="brand-subtitle">Desktop &amp; Web Time Zone Utility</p>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <div class="mode-badge" id="clockModeBadge" title="Live clock vs custom selected time">
+          <span class="pulse-dot" id="liveDot"></span>
+          <span id="clockModeText">Live · Now</span>
+        </div>
+        <button type="button" class="btn btn-subtle btn-sm" id="resetNowBtn" title="Snap back to current live time">
+          Now
+        </button>
+
+        <div class="segmented" role="group" aria-label="Time format">
+          <button type="button" class="seg-btn active" id="fmt12Btn">12h</button>
+          <button type="button" class="seg-btn" id="fmt24Btn">24h</button>
+        </div>
+
+        <button type="button" class="btn btn-icon" id="themeToggleBtn" title="Toggle Dark / Light theme" aria-label="Toggle theme">
+          <span id="themeIcon">☀</span>
+        </button>
+
+        <button type="button" class="btn btn-icon" id="headerPrivacyBtn" title="Data &amp; Privacy Policy" aria-label="Data and Privacy Policy">
+          🔒
+        </button>
+
+        <button type="button" class="btn btn-primary btn-sm" id="installAppBtn" title="Install as standalone desktop window">
+          ⬇ Install App
+        </button>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <!-- Feature 1: Quick Natural-Language Converter -->
+      <section class="card quick-section" aria-labelledby="quickHeading">
+        <div class="quick-header">
+          <label for="quickInput" id="quickHeading" class="section-eyebrow">
+            ⚡ Quick Parse <span class="kbd-hint">Press <kbd>/</kbd> to focus</span>
+          </label>
+          <div class="quick-examples">
+            <span class="examples-label">Try:</span>
+            <button type="button" class="chip-btn" data-example="3pm EST to IST">3pm EST to IST</button>
+            <button type="button" class="chip-btn" data-example="14:30 London in Tokyo, New York">14:30 London in Tokyo, NY</button>
+            <button type="button" class="chip-btn" data-example="tomorrow 9am PST to UTC">tomorrow 9am PST to UTC</button>
+          </div>
+        </div>
+
+        <div class="quick-input-wrap">
+          <span class="quick-search-icon" aria-hidden="true">⌕</span>
+          <input
+            type="text"
+            id="quickInput"
+            class="quick-input"
+            placeholder='Type e.g. "3pm EST to IST", "14:00 London in Tokyo", or "5pm PST"...'
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" class="btn-clear hidden" id="quickClearBtn" aria-label="Clear quick input">✕</button>
+        </div>
+
+        <div id="quickResultPanel" class="quick-result hidden" aria-live="polite"></div>
+      </section>
+
+      <!-- Feature 2 & 4: 1-to-1 Converter + Favorite Pairs -->
+      <section class="card one-to-one-section" aria-labelledby="oneToOneHeading">
+        <div class="section-header">
+          <div>
+            <h2 id="oneToOneHeading" class="section-title">1-to-1 Converter</h2>
+            <p class="section-desc">Edit either side to convert forward or backward instantly</p>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="btn btn-subtle btn-sm" id="savePairBtn" title="Save current From → To pair to favorites">
+              ★ Save Pair
+            </button>
+            <button type="button" class="btn btn-accent btn-sm" id="copyPairInviteBtn" title="Copy formatted conversion for invite or chat">
+              📋 Copy Result
+            </button>
+          </div>
+        </div>
+
+        <!-- Saved Favorite Pairs Bar -->
+        <div class="saved-pairs-bar" id="savedPairsBar" aria-label="Saved favorite pairs"></div>
+
+        <div class="converter-pair-grid">
+          <!-- Source Zone Card -->
+          <div class="zone-pane" id="sourcePane">
+            <div class="pane-top">
+              <span class="pane-role">FROM</span>
+              <div class="pane-badges" id="sourceBadges"></div>
+            </div>
+
+            <div class="zone-selector-row">
+              <button type="button" class="zone-picker-trigger" id="sourceZoneBtn" aria-haspopup="listbox">
+                <span class="zp-main" id="sourceZoneTitle">Loading...</span>
+                <span class="zp-meta" id="sourceZoneMeta"></span>
+                <span class="zp-chevron">▾</span>
+              </button>
+              <button type="button" class="star-btn" id="sourceStarBtn" title="Toggle favorite time zone" aria-label="Favorite source zone">☆</button>
+            </div>
+
+            <div class="pane-time-display">
+              <div class="big-time-readout" id="sourceReadout">12:00 PM</div>
+              <div class="pane-date-readout" id="sourceDateReadout">Tue, Nov 17, 2026</div>
+            </div>
+
+            <div class="pane-inputs">
+              <label class="input-group">
+                <span class="input-label">Time</span>
+                <input type="time" id="sourceTimeInput" class="native-input" />
+              </label>
+              <label class="input-group">
+                <span class="input-label">Date</span>
+                <input type="date" id="sourceDateInput" class="native-input" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Swap & Delta Bridge -->
+          <div class="swap-bridge">
+            <button type="button" class="swap-btn" id="swapZonesBtn" title="Swap From and To time zones" aria-label="Swap time zones">
+              ⇄
+            </button>
+            <div class="delta-pill" id="pairDeltaPill">Same time</div>
+          </div>
+
+          <!-- Target Zone Card -->
+          <div class="zone-pane target-pane" id="targetPane">
+            <div class="pane-top">
+              <span class="pane-role">TO</span>
+              <div class="pane-badges" id="targetBadges"></div>
+            </div>
+
+            <div class="zone-selector-row">
+              <button type="button" class="zone-picker-trigger" id="targetZoneBtn" aria-haspopup="listbox">
+                <span class="zp-main" id="targetZoneTitle">Loading...</span>
+                <span class="zp-meta" id="targetZoneMeta"></span>
+                <span class="zp-chevron">▾</span>
+              </button>
+              <button type="button" class="star-btn" id="targetStarBtn" title="Toggle favorite time zone" aria-label="Favorite target zone">☆</button>
+            </div>
+
+            <div class="pane-time-display">
+              <div class="big-time-readout highlight" id="targetReadout">12:00 PM</div>
+              <div class="pane-date-readout" id="targetDateReadout">Tue, Nov 17, 2026</div>
+            </div>
+
+            <div class="pane-inputs">
+              <label class="input-group">
+                <span class="input-label">Adjust Target Time</span>
+                <input type="time" id="targetTimeInput" class="native-input" />
+              </label>
+              <label class="input-group">
+                <span class="input-label">Target Date</span>
+                <input type="date" id="targetDateInput" class="native-input" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feature 3 & 4: Multi-Zone Comparison Board + Interactive Time Slider -->
+      <section class="card multi-section" aria-labelledby="multiHeading">
+        <div class="section-header">
+          <div>
+            <h2 id="multiHeading" class="section-title">Multi-Zone Timeline &amp; Comparison</h2>
+            <p class="section-desc">Drag the slider or click any hour cell to preview meeting times across all pinned zones</p>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="btn btn-subtle btn-sm" id="copyCompactBtn" title="Copy single-line summary">
+              📋 Copy Line
+            </button>
+            <button type="button" class="btn btn-accent btn-sm" id="copyMeetingBlockBtn" title="Copy multi-line meeting invite block">
+              📅 Copy Invite Block
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="addBoardZoneBtn">
+              + Add Zone
+            </button>
+          </div>
+        </div>
+
+        <!-- Interactive Scrubber Control -->
+        <div class="scrubber-box">
+          <div class="scrubber-top">
+            <div class="scrubber-ref-label">
+              <span class="scrubber-caption">Scrubbing day in reference zone:</span>
+              <strong id="scrubberRefName">Local</strong>
+              <span class="scrubber-time-pill" id="scrubberTimePill">12:00 PM</span>
+            </div>
+            <div class="nudge-group" role="group" aria-label="Step time">
+              <button type="button" class="nudge-btn" data-step="-60">-1h</button>
+              <button type="button" class="nudge-btn" data-step="-15">-15m</button>
+              <button type="button" class="nudge-btn nudge-now" id="scrubberNowBtn">Now</button>
+              <button type="button" class="nudge-btn" data-step="15">+15m</button>
+              <button type="button" class="nudge-btn" data-step="60">+1h</button>
+            </div>
+          </div>
+
+          <div class="slider-wrap">
+            <input
+              type="range"
+              id="timelineSlider"
+              class="timeline-slider"
+              min="0"
+              max="1425"
+              step="15"
+              value="720"
+              aria-label="Time of day slider in 15 minute increments"
+            />
+            <div class="slider-ticks" aria-hidden="true">
+              <span>00:00</span>
+              <span>06:00</span>
+              <span>12:00</span>
+              <span>18:00</span>
+              <span>23:45</span>
+            </div>
+          </div>
+
+          <div class="legend-row">
+            <span class="legend-item"><i class="dot dot-work"></i> Work (9am–6pm)</span>
+            <span class="legend-item"><i class="dot dot-awake"></i> Morning / Evening</span>
+            <span class="legend-item"><i class="dot dot-night"></i> Night (10pm–7am)</span>
+          </div>
+        </div>
+
+        <!-- Multi-zone rows -->
+        <div class="board-list" id="boardList"></div>
+      </section>
+
+      <!-- Semantic Popular Conversions & FAQ (Crawlable & Interactive) -->
+      <section class="card seo-section" aria-labelledby="popularHeading">
+        <h2 id="popularHeading" class="section-title">Popular Time Zone Conversions</h2>
+        <p class="section-desc">Jump directly to common global time zone pairs (automatically adjusts for Daylight Saving Time):</p>
+
+        <nav class="popular-links-grid" aria-label="Popular time zone pairs">
+          <a class="popular-pair-link" href="?from=America/New_York&amp;to=Asia/Kolkata" data-seo-from="America/New_York" data-seo-to="Asia/Kolkata">EST to IST (New York → India)</a>
+          <a class="popular-pair-link" href="?from=America/Los_Angeles&amp;to=Asia/Kolkata" data-seo-from="America/Los_Angeles" data-seo-to="Asia/Kolkata">PST to IST (California → India)</a>
+          <a class="popular-pair-link" href="?from=UTC&amp;to=Asia/Kolkata" data-seo-from="UTC" data-seo-to="Asia/Kolkata">UTC to IST (Universal → India)</a>
+          <a class="popular-pair-link" href="?from=America/Los_Angeles&amp;to=America/New_York" data-seo-from="America/Los_Angeles" data-seo-to="America/New_York">PST to EST (US Pacific → Eastern)</a>
+          <a class="popular-pair-link" href="?from=Europe/London&amp;to=America/New_York" data-seo-from="Europe/London" data-seo-to="America/New_York">GMT / BST to EST (London → New York)</a>
+          <a class="popular-pair-link" href="?from=Europe/Berlin&amp;to=America/New_York" data-seo-from="Europe/Berlin" data-seo-to="America/New_York">CET to EST (Central Europe → NY)</a>
+          <a class="popular-pair-link" href="?from=Asia/Tokyo&amp;to=America/Los_Angeles" data-seo-from="Asia/Tokyo" data-seo-to="America/Los_Angeles">JST to PST (Tokyo → San Francisco)</a>
+          <a class="popular-pair-link" href="?from=Asia/Singapore&amp;to=Europe/London" data-seo-from="Asia/Singapore" data-seo-to="Europe/London">SGT to GMT (Singapore → London)</a>
+          <a class="popular-pair-link" href="?from=Australia/Sydney&amp;to=Europe/London" data-seo-from="Australia/Sydney" data-seo-to="Europe/London">AEST to GMT (Sydney → London)</a>
+          <a class="popular-pair-link" href="?from=UTC&amp;to=America/New_York" data-seo-from="UTC" data-seo-to="America/New_York">UTC to EST (Universal → US Eastern)</a>
+        </nav>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Does ZoneShift automatically adjust for Daylight Saving Time (DST)?</summary>
+            <p>
+              Yes. ZoneShift uses the official IANA Time Zone Database built into modern browsers and operating systems, automatically switching between standard and daylight offsets (such as EST/EDT, PST/PDT, GMT/BST, and CET/CEST) for any past, present, or future date you pick.
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>Does it support 30-minute and 45-minute UTC offsets like IST and Nepal Time?</summary>
+            <p>
+              Yes. Every standard, half-hour, and 45-minute offset is supported accurately, including India Standard Time (Asia/Kolkata, UTC+5:30), Nepal Time (Asia/Kathmandu, UTC+5:45), Australian Central Time (UTC+9:30/+10:30), and Newfoundland Time (UTC-3:30/-2:30).
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I use ZoneShift offline on Windows, Linux, or macOS?</summary>
+            <p>
+              Yes. Click <strong>Install App</strong> in your browser to add ZoneShift as a standalone desktop application on Windows, Linux, or macOS. All assets are cached locally and zero data is sent to any server.
+            </p>
+          </details>
+        </div>
+
+        <noscript>
+          <p class="noscript-note">Enable JavaScript in your browser to run interactive time zone conversions, natural-language queries, and the 24-hour multi-zone meeting timeline.</p>
+        </noscript>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-left">
+        <span>Works 100% offline · Zero tracking or servers</span>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="footer-link-btn" id="openDataPolicyBtn">🔒 Data &amp; Privacy Policy</button>
+      </div>
+      <span>Shortcuts: <kbd>/</kbd> Quick Parse · <kbd>N</kbd> Reset to Now · <kbd>S</kbd> Swap 1-to-1</span>
+    </footer>
+  </div>
+
+  <!-- Reusable Searchable Time Zone Picker Popover / Modal -->
+  <div class="modal-backdrop hidden" id="zonePickerModal" role="dialog" aria-modal="true" aria-labelledby="pickerModalTitle">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="pickerModalTitle" class="modal-title">Select Time Zone</h3>
+        <button type="button" class="btn-clear" id="closePickerBtn" aria-label="Close">✕</button>
+      </div>
+      <div class="picker-search-wrap">
+        <input
+          type="text"
+          id="pickerSearchInput"
+          class="picker-search-input"
+          placeholder="Search city, country, abbreviation (IST, EST, PST, Tokyo, London)..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+      <div class="picker-filter-tabs">
+        <button type="button" class="tab-chip active" data-filter="all" id="filterAllBtn">All Zones</button>
+        <button type="button" class="tab-chip" data-filter="favorites" id="filterFavBtn">★ Favorites</button>
+      </div>
+      <ul class="picker-results" id="pickerResultsList" role="listbox"></ul>
+    </div>
+  </div>
+
+  <!-- Install Desktop App Instructions Modal (fallback when browser doesn't expose one-click prompt) -->
+  <div class="modal-backdrop hidden" id="installHelpModal" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+    <div class="modal-panel install-modal-panel">
+      <div class="modal-header">
+        <h3 id="installHelpTitle" class="modal-title">Install ZoneShift on Your Desktop</h3>
+        <button type="button" class="btn-clear" id="closeInstallHelpBtn" aria-label="Close">✕</button>
+      </div>
+      <div class="install-modal-body">
+        <p class="install-intro">
+          ZoneShift is a Progressive Web App (PWA). You can install it as a standalone desktop window with its own app icon, taskbar/dock launcher, and offline support on <strong>Windows, Linux, and macOS</strong>:
+        </p>
+        <div class="install-steps-grid">
+          <div class="install-os-card">
+            <h4>Chrome / Edge / Brave (Windows, Linux, macOS)</h4>
+            <p>Click the <strong>Install icon (⊕ / monitor arrow)</strong> on the right side of the browser address bar, or open the browser menu <strong>⋮ → Cast, save, and share → Install page as app…</strong></p>
+          </div>
+          <div class="install-os-card">
+            <h4>Safari (macOS Sonoma+)</h4>
+            <p>In the top menu bar, choose <strong>File → Add to Dock…</strong> to create a standalone macOS desktop app.</p>
+          </div>
+          <div class="install-os-card">
+            <h4>Firefox / Any Browser</h4>
+            <p>Bookmark this page or pin the tab — once loaded once, it works even without an internet connection.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data & Privacy Policy Modal -->
+  <div class="modal-backdrop hidden" id="dataPolicyModal" role="dialog" aria-modal="true" aria-labelledby="dataPolicyTitle">
+    <div class="modal-panel install-modal-panel">
+      <div class="modal-header">
+        <h3 id="dataPolicyTitle" class="modal-title">🔒 Data &amp; Privacy Policy</h3>
+        <button type="button" class="btn-clear" id="closeDataPolicyBtn" aria-label="Close">✕</button>
+      </div>
+      <div class="install-modal-body">
+        <p class="install-intro">
+          <strong>ZoneShift runs 100% locally on your device.</strong> No personal data, time zone selections, or usage metrics are ever transmitted to any server.
+        </p>
+        <div class="install-steps-grid">
+          <div class="install-os-card">
+            <h4>1. Zero Collection, Cookies, or Analytics</h4>
+            <p>This app makes no external API calls, sets no tracking cookies, and embeds no third-party analytics scripts. All time zone math uses your browser/OS built-in IANA database.</p>
+          </div>
+          <div class="install-os-card">
+            <h4>2. Local Preferences (<code>localStorage</code>)</h4>
+            <p>Your saved <code>From → To</code> pairs, ★ favorite zones, pinned multi-zone rows, <code>12h/24h</code> format, and <code>dark/light</code> theme are saved locally in your browser under the key <code>zoneshift_prefs_v1</code> so your setup persists between sessions.</p>
+          </div>
+          <div class="install-os-card">
+            <h4>3. Offline App Cache (Service Worker)</h4>
+            <p>Static app files (HTML, CSS, JS, and icons) are cached locally in your browser's Cache Storage so ZoneShift opens instantly even without an internet connection.</p>
+          </div>
+          <div class="install-os-card policy-actions-card">
+            <div>
+              <h4>4. Manage Your Local Data</h4>
+              <p>You can erase all saved pairs, favorites, and preferences stored in this browser at any time:</p>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm" id="clearLocalDataBtn">
+              🗑 Clear Saved Data &amp; Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="50%" stop-color="#312e81" />
+      <stop offset="100%" stop-color="#0f766e" />
+    </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#2dd4bf" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <!-- Subtle globe meridians -->
+  <circle cx="256" cy="256" r="164" fill="none" stroke="url(#ring)" stroke-width="20" />
+  <ellipse cx="256" cy="256" rx="84" ry="164" fill="none" stroke="#818cf8" stroke-opacity="0.35" stroke-width="10" />
+  <line x1="92" y1="256" x2="420" y2="256" stroke="#2dd4bf" stroke-opacity="0.35" stroke-width="10" />
+  <!-- Clock hands -->
+  <line x1="256" y1="256" x2="256" y2="152" stroke="#ffffff" stroke-width="22" stroke-linecap="round" />
+  <line x1="256" y1="256" x2="334" y2="296" stroke="#2dd4bf" stroke-width="20" stroke-linecap="round" />
+  <circle cx="256" cy="256" r="18" fill="#ffffff" />
+</svg>

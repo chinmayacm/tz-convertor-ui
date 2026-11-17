@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://chinmayacm.github.io/tz-convertor-ui/sitemap.xml

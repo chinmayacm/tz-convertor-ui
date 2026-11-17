@@ -1,0 +1,76 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test & Package App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run unit & bundle verification tests
+        run: npm test
+
+      - name: Build PWA & standalone HTML bundle
+        run: npm run build
+
+      - name: Create distributable ZIP archive
+        run: |
+          cd dist
+          zip -r ../zoneshift-pwa.zip . -x "zoneshift-standalone.html"
+
+      - name: Upload PWA Web App artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoneshift-pwa-web
+          path: zoneshift-pwa.zip
+          if-no-files-found: error
+
+      - name: Upload Standalone Single-File HTML artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoneshift-standalone-html
+          path: dist/zoneshift-standalone.html
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download PWA ZIP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zoneshift-pwa-web
+
+      - name: Download Standalone HTML artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zoneshift-standalone-html
+
+      - name: Create GitHub Release with build assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            zoneshift-pwa.zip
+            zoneshift-standalone.html
