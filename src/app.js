@@ -19,6 +19,12 @@ import { parseQuickQuery } from './quick-parse.js';
 
 const STORAGE_KEY = 'zoneshift_prefs_v1';
 const MODULE_KEYS = ['quick', 'oneToOne', 'multi', 'guide'];
+const DEFAULT_VISIBLE_MODULES = {
+  quick: true,
+  oneToOne: true,
+  multi: true,
+  guide: false,
+};
 const MODULE_LABELS = {
   quick: 'Quick Parse',
   oneToOne: '1-to-1 Converter',
@@ -57,6 +63,7 @@ function createDefaultState() {
   return {
     theme: 'dark',
     use24Hour: false,
+    useSystemBase: true,
     baseZone: local,
     referenceZone: local,
     sourceZone: local,
@@ -65,12 +72,9 @@ function createDefaultState() {
     favoriteZones,
     savedPairs,
     hourRanges: { ...DEFAULT_HOUR_RANGES },
-    visibleModules: {
-      quick: true,
-      oneToOne: true,
-      multi: true,
-      guide: true,
-    },
+    visibleModules: { ...DEFAULT_VISIBLE_MODULES },
+    guideDefaultClosedV1: true,
+    isAppInstalled: false,
     moduleOrder: [...MODULE_KEYS],
   };
 }
@@ -121,12 +125,27 @@ function loadPrefs() {
         loadedModules.oneToOne = true;
       }
     }
-    const boardZones = Array.isArray(parsed.boardZones) && parsed.boardZones.length
+    if (!parsed.guideDefaultClosedV1) {
+      loadedModules.guide = false;
+      if (!MODULE_KEYS.some((k) => loadedModules[k])) {
+        loadedModules.oneToOne = true;
+      }
+    }
+    const systemZone = getLocalZoneId();
+    const useSystemBase = parsed.useSystemBase !== false;
+    const baseZone = useSystemBase
+      ? systemZone
+      : isValidZone(parsed.baseZone)
+        ? normalizeZoneId(parsed.baseZone)
+        : systemZone;
+
+    let boardZones = Array.isArray(parsed.boardZones) && parsed.boardZones.length
       ? uniqueZones(parsed.boardZones)
       : defaults.boardZones;
-    const baseZone = isValidZone(parsed.baseZone)
-      ? normalizeZoneId(parsed.baseZone)
-      : defaults.baseZone;
+    if (useSystemBase && !boardZones.includes(systemZone)) {
+      boardZones = [systemZone, ...boardZones];
+    }
+
     const rawRef = isValidZone(parsed.referenceZone)
       ? normalizeZoneId(parsed.referenceZone)
       : baseZone;
@@ -135,9 +154,10 @@ function loadPrefs() {
     return {
       theme: parsed.theme === 'light' ? 'light' : 'dark',
       use24Hour: Boolean(parsed.use24Hour),
+      useSystemBase,
       baseZone,
       referenceZone,
-      sourceZone: isValidZone(parsed.sourceZone) ? normalizeZoneId(parsed.sourceZone) : defaults.sourceZone,
+      sourceZone: isValidZone(parsed.sourceZone) ? normalizeZoneId(parsed.sourceZone) : baseZone,
       targetZone: isValidZone(parsed.targetZone) ? normalizeZoneId(parsed.targetZone) : defaults.targetZone,
       boardZones,
       favoriteZones: Array.isArray(parsed.favoriteZones)
@@ -148,6 +168,8 @@ function loadPrefs() {
         : defaults.savedPairs,
       hourRanges: normalizeHourRanges(parsed.hourRanges),
       visibleModules: loadedModules,
+      guideDefaultClosedV1: true,
+      isAppInstalled: Boolean(parsed.isAppInstalled),
       moduleOrder: normalizeModuleOrder(parsed.moduleOrder),
     };
   } catch {
@@ -169,7 +191,8 @@ function getBoardReferenceZone() {
 const runtime = {
   isLive: true,
   epochMs: Date.now(),
-  pickerMode: null, // 'base' | 'source' | 'target' | 'board'
+  pickerMode: null, // 'base' | 'source' | 'target' | 'board' | 'board-replace'
+  pickerReplaceIndex: null,
   pickerFilter: 'all', // 'all' | 'favorites'
   pickerFocusIndex: 0,
   pickerCurrentItems: [],
@@ -258,6 +281,11 @@ const el = {
 
   installHelpModal: document.getElementById('installHelpModal'),
   closeInstallHelpBtn: document.getElementById('closeInstallHelpBtn'),
+  markInstalledBtn: document.getElementById('markInstalledBtn'),
+
+  uninstallHelpModal: document.getElementById('uninstallHelpModal'),
+  closeUninstallHelpBtn: document.getElementById('closeUninstallHelpBtn'),
+  unregisterPwaBtn: document.getElementById('unregisterPwaBtn'),
 
   headerPrivacyBtn: document.getElementById('headerPrivacyBtn'),
   openDataPolicyBtn: document.getElementById('openDataPolicyBtn'),
@@ -338,14 +366,43 @@ function resetToNow() {
   renderAll();
 }
 
+function isRunningInstalled() {
+  const inAppWindow =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    window.matchMedia?.('(display-mode: window-controls-overlay)').matches ||
+    window.matchMedia?.('(display-mode: minimal-ui)').matches ||
+    window.navigator.standalone === true;
+  if (inAppWindow && !prefs.isAppInstalled) {
+    prefs.isAppInstalled = true;
+    savePrefs();
+  }
+  return Boolean(inAppWindow || prefs.isAppInstalled);
+}
+
 function renderHeaderState() {
   el.fmt12Btn.classList.toggle('active', !prefs.use24Hour);
   el.fmt24Btn.classList.toggle('active', prefs.use24Hour);
   el.resetNowBtn.classList.toggle('btn-now-highlight', !runtime.isLive);
 
+  if (el.installAppBtn) {
+    const installed = isRunningInstalled();
+    el.installAppBtn.textContent = installed ? '🗑 Uninstall App' : '⬇ Install App';
+    el.installAppBtn.title = installed
+      ? 'Uninstall desktop app or clear offline cache'
+      : 'Install as standalone desktop window';
+    el.installAppBtn.classList.toggle('btn-primary', !installed);
+    el.installAppBtn.classList.toggle('btn-subtle', installed);
+  }
+
+  if (prefs.useSystemBase) {
+    prefs.baseZone = getLocalZoneId();
+  }
+
   if (el.baseZoneLabel) {
     const baseSnap = getZoneSnapshot(runtime.epochMs, prefs.baseZone, prefs.baseZone, prefs.use24Hour);
-    el.baseZoneLabel.textContent = `${baseSnap.cityName} (${baseSnap.abbrev})`;
+    el.baseZoneLabel.textContent = prefs.useSystemBase
+      ? `System · ${baseSnap.cityName} (${baseSnap.abbrev})`
+      : `${baseSnap.cityName} (${baseSnap.abbrev})`;
   }
 
   if (runtime.isLive) {
@@ -564,6 +621,10 @@ function renderMultiBoard() {
           ? `<span class="badge badge-dayshift">${escapeHtml(snap.dayBadge)}</span>`
           : '';
 
+      const refActionBtnHtml = !isRef
+        ? `<button type="button" class="row-btn row-ref-btn" data-action="make-ref" data-zone="${escapeHtml(zoneId)}" title="Use this zone as the Reference Zone">Set Reference</button>`
+        : `<button type="button" class="row-btn row-ref-btn ${rowIdx > 0 ? 'row-ref-top-btn' : ''}" data-action="move-top" data-zone="${escapeHtml(zoneId)}" ${rowIdx === 0 ? 'disabled' : ''} title="${rowIdx === 0 ? 'Reference zone is already at the top' : 'Move Reference zone to the top of the list'}">${rowIdx === 0 ? '✓ At Top' : '⤒ Move to Top'}</button>`;
+
       return `
         <div class="board-row ${isRef ? 'is-ref' : ''}" data-zone="${escapeHtml(zoneId)}">
           <div class="board-row-top">
@@ -571,7 +632,10 @@ function renderMultiBoard() {
               <span class="row-drag-handle" title="Drag to reorder time zone" aria-hidden="true">⋮⋮</span>
               <div>
                 <div class="board-zone-title">
-                  ${escapeHtml(snap.displayName)}
+                  <button type="button" class="board-zone-trigger" data-action="change-zone" data-row-index="${rowIdx}" data-zone="${escapeHtml(zoneId)}" title="Click to change this time zone">
+                    <span>${escapeHtml(snap.displayName)}</span>
+                    <span class="zp-chevron">▾</span>
+                  </button>
                   ${isRef ? '<span class="ref-pill">Reference</span>' : ''}
                 </div>
                 <div class="board-zone-sub">
@@ -589,19 +653,12 @@ function renderMultiBoard() {
                 <div class="board-date">${escapeHtml(snap.dateFormatted)}</div>
               </div>
               <div class="row-actions">
-                ${
-                  !isRef
-                    ? `<button type="button" class="row-btn" data-action="make-ref" data-zone="${escapeHtml(zoneId)}" title="Use this zone as the Reference Zone">Set Reference</button>`
-                    : ''
-                }
-                <button type="button" class="row-btn" data-action="move-up" data-zone="${escapeHtml(zoneId)}" ${rowIdx === 0 ? 'disabled' : ''} title="Move zone up" aria-label="Move ${escapeHtml(snap.cityName)} up">↑</button>
-                <button type="button" class="row-btn" data-action="move-down" data-zone="${escapeHtml(zoneId)}" ${rowIdx === prefs.boardZones.length - 1 ? 'disabled' : ''} title="Move zone down" aria-label="Move ${escapeHtml(snap.cityName)} down">↓</button>
-                <button type="button" class="row-btn ${isFav ? 'starred' : ''}" data-action="fav" data-zone="${escapeHtml(zoneId)}" title="Toggle Favorite">${isFav ? '★' : '☆'}</button>
-                ${
-                  prefs.boardZones.length > 1
-                    ? `<button type="button" class="row-btn remove" data-action="remove" data-zone="${escapeHtml(zoneId)}" title="Remove from board">✕</button>`
-                    : ''
-                }
+                ${refActionBtnHtml}
+                <button type="button" class="row-btn row-change-btn" data-action="change-zone" data-row-index="${rowIdx}" data-zone="${escapeHtml(zoneId)}" title="Change this row's time zone">Change</button>
+                <button type="button" class="row-btn row-icon-btn" data-action="move-up" data-zone="${escapeHtml(zoneId)}" ${rowIdx === 0 ? 'disabled' : ''} title="Move zone up" aria-label="Move ${escapeHtml(snap.cityName)} up">↑</button>
+                <button type="button" class="row-btn row-icon-btn" data-action="move-down" data-zone="${escapeHtml(zoneId)}" ${rowIdx === prefs.boardZones.length - 1 ? 'disabled' : ''} title="Move zone down" aria-label="Move ${escapeHtml(snap.cityName)} down">↓</button>
+                <button type="button" class="row-btn row-icon-btn ${isFav ? 'starred' : ''}" data-action="fav" data-zone="${escapeHtml(zoneId)}" title="Toggle Favorite">${isFav ? '★' : '☆'}</button>
+                <button type="button" class="row-btn row-icon-btn remove" data-action="remove" data-zone="${escapeHtml(zoneId)}" ${prefs.boardZones.length <= 1 ? 'disabled' : ''} title="Remove from board">✕</button>
               </div>
             </div>
           </div>
@@ -758,9 +815,12 @@ function renderModulesVisibility() {
   }
 
   const isCustomOrder = order.join(',') !== MODULE_KEYS.join(',');
+  const isCustomVisibility = MODULE_KEYS.some(
+    (k) => Boolean(prefs.visibleModules[k]) !== Boolean(DEFAULT_VISIBLE_MODULES[k])
+  );
   const resetLayoutBtn = document.getElementById('resetLayoutBtn');
   if (resetLayoutBtn) {
-    resetLayoutBtn.classList.toggle('hidden', hiddenCount === 0 && !isCustomOrder);
+    resetLayoutBtn.classList.toggle('hidden', !isCustomVisibility && !isCustomOrder);
   }
 }
 
@@ -827,23 +887,34 @@ function renderAll() {
 }
 
 // Searchable Time Zone Picker Modal
-function openZonePicker(mode) {
+function openZonePicker(mode, replaceIndex = null) {
   runtime.pickerMode = mode;
+  runtime.pickerReplaceIndex = replaceIndex;
   runtime.pickerFocusIndex = 0;
+
+  const replacingZone =
+    mode === 'board-replace' && replaceIndex !== null
+      ? prefs.boardZones[replaceIndex]
+      : null;
+
   const titles = {
     base: 'Select Default Base / Home Time Zone',
     source: 'Select Source ("From") Time Zone',
     target: 'Select Target ("To") Time Zone',
     board: 'Add Time Zone to Multi-Zone Board',
+    'board-replace': replacingZone
+      ? `Change Time Zone (${getZoneShortTitle(replacingZone)})`
+      : 'Change Row Time Zone',
   };
   el.pickerModalTitle.textContent = titles[mode] || 'Select Time Zone';
 
   if (el.useSystemLocalBtn) {
     const sysLocal = getLocalZoneId();
-    const showLocalReset = mode === 'base' && prefs.baseZone !== sysLocal;
+    const showLocalReset = mode === 'base';
     el.useSystemLocalBtn.classList.toggle('hidden', !showLocalReset);
+    el.useSystemLocalBtn.classList.toggle('active', Boolean(prefs.useSystemBase));
     if (showLocalReset) {
-      el.useSystemLocalBtn.textContent = `📍 System Local (${getZoneShortTitle(sysLocal)})`;
+      el.useSystemLocalBtn.textContent = `📍 Device System Time (${getZoneShortTitle(sysLocal)})`;
     }
   }
 
@@ -856,6 +927,7 @@ function openZonePicker(mode) {
 function closeZonePicker() {
   el.zonePickerModal.classList.add('hidden');
   runtime.pickerMode = null;
+  runtime.pickerReplaceIndex = null;
 }
 
 function renderPickerList() {
@@ -900,10 +972,11 @@ function renderPickerList() {
     .join('');
 }
 
-function selectZoneFromPicker(zoneId) {
+function selectZoneFromPicker(zoneId, { isSystemReset = false } = {}) {
   const norm = normalizeZoneId(zoneId);
   if (runtime.pickerMode === 'base') {
     const prevBase = prefs.baseZone;
+    prefs.useSystemBase = Boolean(isSystemReset);
     prefs.baseZone = norm;
     prefs.referenceZone = norm;
     prefs.sourceZone = norm;
@@ -918,7 +991,11 @@ function selectZoneFromPicker(zoneId) {
     if (!prefs.boardZones.includes(norm)) {
       prefs.boardZones.unshift(norm);
     }
-    showToast(`🏠 Set default base zone to ${getZoneShortTitle(norm)}`);
+    showToast(
+      isSystemReset
+        ? `📍 Using device system time zone (${getZoneShortTitle(norm)})`
+        : `🏠 Set default base zone to ${getZoneShortTitle(norm)}`
+    );
   } else if (runtime.pickerMode === 'source') {
     // Preserve wall-clock time in the newly chosen source zone if user already picked a custom time
     if (!runtime.isLive) {
@@ -936,6 +1013,24 @@ function selectZoneFromPicker(zoneId) {
       showToast(`Added ${getZoneShortTitle(norm)} to timeline`);
     } else {
       showToast(`${getZoneShortTitle(norm)} is already on the timeline`);
+    }
+  } else if (runtime.pickerMode === 'board-replace') {
+    const idx = runtime.pickerReplaceIndex;
+    if (idx !== null && idx >= 0 && idx < prefs.boardZones.length) {
+      const oldZone = prefs.boardZones[idx];
+      if (oldZone !== norm) {
+        if (prefs.boardZones.includes(norm)) {
+          const otherIdx = prefs.boardZones.indexOf(norm);
+          prefs.boardZones[otherIdx] = oldZone;
+          prefs.boardZones[idx] = norm;
+          if (prefs.referenceZone === oldZone) prefs.referenceZone = norm;
+          showToast(`Swapped ${getZoneShortTitle(oldZone)} with ${getZoneShortTitle(norm)}`);
+        } else {
+          prefs.boardZones[idx] = norm;
+          if (prefs.referenceZone === oldZone) prefs.referenceZone = norm;
+          showToast(`Changed ${getZoneShortTitle(oldZone)} to ${getZoneShortTitle(norm)}`);
+        }
+      }
     }
   }
   savePrefs();
@@ -1007,7 +1102,9 @@ function bindEvents() {
 
   // Base & 1-to-1 Zone Pickers + Favorites
   el.baseZoneBtn?.addEventListener('click', () => openZonePicker('base'));
-  el.useSystemLocalBtn?.addEventListener('click', () => selectZoneFromPicker(getLocalZoneId()));
+  el.useSystemLocalBtn?.addEventListener('click', () =>
+    selectZoneFromPicker(getLocalZoneId(), { isSystemReset: true })
+  );
   el.sourceZoneBtn.addEventListener('click', () => openZonePicker('source'));
   el.targetZoneBtn.addEventListener('click', () => openZonePicker('target'));
   el.addBoardZoneBtn.addEventListener('click', () => openZonePicker('board'));
@@ -1187,6 +1284,16 @@ function bindEvents() {
       savePrefs();
       renderAll();
       showToast(`Set ${getZoneShortTitle(zone)} as Reference Zone`);
+    } else if (action === 'move-top') {
+      prefs.boardZones = [zone, ...prefs.boardZones.filter((z) => z !== zone)];
+      savePrefs();
+      renderMultiBoard();
+      showToast(`Moved ${getZoneShortTitle(zone)} to top`);
+    } else if (action === 'change-zone') {
+      const rowIdx = Number(actionBtn.getAttribute('data-row-index'));
+      if (!Number.isNaN(rowIdx)) {
+        openZonePicker('board-replace', rowIdx);
+      }
     } else if (action === 'move-up' || action === 'move-down') {
       const idx = prefs.boardZones.indexOf(zone);
       const targetIdx = action === 'move-up' ? idx - 1 : idx + 1;
@@ -1344,31 +1451,55 @@ function bindEvents() {
     }
   });
 
-  // Desktop PWA Install Handling
+  // Desktop PWA Install & Uninstall Handling
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     runtime.deferredInstallPrompt = e;
+    if (!window.matchMedia?.('(display-mode: standalone)').matches && prefs.isAppInstalled) {
+      prefs.isAppInstalled = false;
+      savePrefs();
+      renderHeaderState();
+    }
   });
 
   window.addEventListener('appinstalled', () => {
     runtime.deferredInstallPrompt = null;
-    el.installAppBtn.classList.add('hidden');
+    prefs.isAppInstalled = true;
+    savePrefs();
+    renderHeaderState();
+    el.installHelpModal.classList.add('hidden');
     showToast('✓ ZoneShift installed as desktop app!');
   });
 
-  // Hide install button if already running inside standalone desktop PWA window
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    el.installAppBtn.classList.add('hidden');
-  }
+  window.matchMedia?.('(display-mode: standalone)').addEventListener?.('change', () => {
+    renderHeaderState();
+  });
 
   el.installAppBtn.addEventListener('click', async () => {
+    if (isRunningInstalled()) {
+      el.uninstallHelpModal.classList.remove('hidden');
+      return;
+    }
     if (runtime.deferredInstallPrompt) {
       runtime.deferredInstallPrompt.prompt();
-      await runtime.deferredInstallPrompt.userChoice;
+      const choice = await runtime.deferredInstallPrompt.userChoice;
       runtime.deferredInstallPrompt = null;
+      if (choice && choice.outcome === 'accepted') {
+        prefs.isAppInstalled = true;
+        savePrefs();
+        renderHeaderState();
+      }
     } else {
       el.installHelpModal.classList.remove('hidden');
     }
+  });
+
+  el.markInstalledBtn?.addEventListener('click', () => {
+    prefs.isAppInstalled = true;
+    savePrefs();
+    renderHeaderState();
+    el.installHelpModal.classList.add('hidden');
+    showToast('Switched button to Uninstall App');
   });
 
   el.closeInstallHelpBtn.addEventListener('click', () => {
@@ -1376,6 +1507,32 @@ function bindEvents() {
   });
   el.installHelpModal.addEventListener('click', (e) => {
     if (e.target === el.installHelpModal) el.installHelpModal.classList.add('hidden');
+  });
+
+  const closeUninstallHelp = () => el.uninstallHelpModal?.classList.add('hidden');
+  el.closeUninstallHelpBtn?.addEventListener('click', closeUninstallHelp);
+  el.uninstallHelpModal?.addEventListener('click', (e) => {
+    if (e.target === el.uninstallHelpModal) closeUninstallHelp();
+  });
+
+  el.unregisterPwaBtn?.addEventListener('click', async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      // Ignore cache/SW cleanup errors
+    }
+    prefs.isAppInstalled = false;
+    savePrefs();
+    renderHeaderState();
+    closeUninstallHelp();
+    showToast('✓ Cleared offline app cache & reset install state');
   });
 
   // Data & Privacy Policy Modal Handling
@@ -1475,9 +1632,7 @@ function bindEvents() {
   });
 
   document.getElementById('resetLayoutBtn')?.addEventListener('click', () => {
-    for (const k of MODULE_KEYS) {
-      prefs.visibleModules[k] = true;
-    }
+    prefs.visibleModules = { ...DEFAULT_VISIBLE_MODULES };
     prefs.moduleOrder = [...MODULE_KEYS];
     savePrefs();
     renderModulesVisibility();
@@ -1517,6 +1672,7 @@ function bindEvents() {
     if (e.key === 'Escape') {
       closeZonePicker();
       el.installHelpModal.classList.add('hidden');
+      closeUninstallHelp();
       closeDataPolicy();
       return;
     }
